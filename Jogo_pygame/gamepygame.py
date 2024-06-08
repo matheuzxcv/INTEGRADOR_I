@@ -1,11 +1,11 @@
 import pygame
 import random
 import sys
-import serial
 import time
 from gtts import gTTS
 import os
 import threading
+
 pygame.init()
 
 # Definindo algumas cores
@@ -20,7 +20,6 @@ WINDOW_SIZE = (WIDTH, HEIGHT)
 FPS = 60
 
 palavra = ['0', '0', '0', '0', '0', '0']
-# Inicializando o Pygame
 
 # Criando a janela do jogo
 screen = pygame.display.set_mode(WINDOW_SIZE)
@@ -181,13 +180,21 @@ def monta_palavra(posicao, caractere):
     else:
         print("Erro na montagem de palavras")
 
-def leitura_caracteres():
-    input_text = ""
-    while len(input_text) < 2:
-        received_char = ser.read().decode('utf-8').strip()
-        if received_char:
-            input_text += received_char.lower()
-    return input_text[0], input_text[1]
+def leitura_caracteres(event):
+    if event.key == pygame.K_0:
+        return '0'
+    elif event.key == pygame.K_1:
+        return '1'
+    elif event.key == pygame.K_2:
+        return '2'
+    elif event.key == pygame.K_3:
+        return '3'
+    elif event.key == pygame.K_4:
+        return '4'
+    elif event.key == pygame.K_5:
+        return '5'
+    else:
+        return event.unicode.lower()
 
 def filtra_palavra(palavra):
     return ''.join([char for char in palavra if char != '0'])
@@ -196,18 +203,6 @@ def limpar():
     global palavra
     palavra = ['0', '0', '0', '0', '0', '0']
 
-
-# Configurações da porta serial
-port = '/dev/ttyUSB0'  # Ajuste conforme necessário
-baud_rate = 9600
-
-try:
-    ser = serial.Serial(port, baud_rate, timeout=0.1)
-except serial.SerialException as e:
-    print(f"Erro ao abrir a porta serial: {e}")
-    sys.exit(1)
-
-# Função principal do jogo
 # Função principal do jogo
 def main():
     palavra_atual, letras_faltando, palavra_completa = proxima_palavra()
@@ -223,7 +218,6 @@ def main():
 
     clock = pygame.time.Clock()
     running = True
-
 
     try:
         while running:
@@ -250,47 +244,49 @@ def main():
                 if event.type == pygame.QUIT:
                     running = False
                     break
-            # Leitura da entrada serial
-            if ser.in_waiting > 0:
-                posicao, caractere = leitura_caracteres()
-                monta_palavra(posicao, caractere)
-                palavra_filtrada = filtra_palavra(palavra)
-                #received_char = ser.read().decode('utf-8').strip()
-                if len(palavra_filtrada) < 2:  # Limita a entrada a duas letras
-                    desenhar_texto(palavra_filtrada, WIDTH // 2, HEIGHT // 2 + 10)
+                elif event.type == pygame.KEYDOWN:
+                    if len(input_text) < 2:
+                        posicao = str(len(input_text))
+                        caractere = leitura_caracteres(event)
+                        monta_palavra(posicao, caractere)
+                        input_text += caractere
+
+            palavra_filtrada = filtra_palavra(palavra)
+            if len(palavra_filtrada) < 2:  # Limita a entrada a duas letras
+                desenhar_texto(palavra_filtrada, WIDTH // 2, HEIGHT // 2 + 10)
+                pygame.display.flip()
+            # Verifica se a entrada está completa
+            if len(palavra_filtrada) == 2:
+                if sorted(palavra_filtrada) == sorted(letras_faltando):
+                    score += 1
+                    acerto_som.play()
+                    desenhar_texto(palavra_completa, WIDTH // 2, HEIGHT // 2 + 150)  # Desenha a palavra completa após o acerto
+                    pygame.display.flip()  # Atualiza a tela
+                    time.sleep(1)  # Dá um delay
+                    tocar_audio(audio_file)  # Toca a palavra completa
+                    time.sleep(2)  # Dá um delay
+                    palavra_filtrada = ""
+                    limpar()
+                    input_text = ""
+                    # Gera uma nova palavra após acerto
+                    palavra_atual, letras_faltando, palavra_completa = proxima_palavra()
+                    # Criar e tocar áudio da nova palavra
+                    audio_file = criar_audio(palavra_completa)
+                    tocar_audio(audio_file)
+                    
                     pygame.display.flip()
-                # Verifica se a entrada está completa
-                if len(palavra_filtrada) == 2:
-                    if sorted(palavra_filtrada) == sorted(letras_faltando):
-                        score += 1
-                        acerto_som.play()
-                        desenhar_texto(palavra_completa, WIDTH // 2, HEIGHT // 2 + 150)  # Desenha a palavra completa após o acerto
-                        pygame.display.flip()  # Atualiza a tela
-                        time.sleep(1)  # Dá um delay
-                        tocar_audio(audio_file)  # Toca a palavra completa
-                        time.sleep(2)  # Dá um delay
-                        palavra_filtrada = ""
-                        limpar()
-                        # Gera uma nova palavra após acerto
-                        palavra_atual, letras_faltando, palavra_completa = proxima_palavra()
-                        # Criar e tocar áudio da nova palavra
-                        audio_file = criar_audio(palavra_completa)
-                        tocar_audio(audio_file)
-                        
-                        pygame.display.flip()
-                    else:
-                        erro_som.play()
-                        # Mantém a mesma palavra após erro
-                        palavra_filtrada = ""
-                        limpar()
-            
+                else:
+                    erro_som.play()
+                    # Mantém a mesma palavra após erro
+                    palavra_filtrada = ""
+                    limpar()
+                    input_text = ""
             
             clock.tick(FPS)
 
     finally:
-        # Fechar o Pygame e a porta serial
+        # Fechar o Pygame
         pygame.quit()
-        ser.close()
 
 if __name__ == "__main__":
     main()
